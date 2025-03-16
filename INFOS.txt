@@ -1,0 +1,5 @@
+tar zxf archives/net-snmp-5.9.4.tar.gz
+cp execute.c net-snmp-5.9.4/agent/mibgroup/utilities/execute.c
+./build
+cp _build/platforms/arm/lib/*.a lib
+

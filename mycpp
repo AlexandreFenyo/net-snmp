@@ -1,0 +1,8 @@
+#!/bin/sh
+
+#echo 1>&2
+#echo AAAAAAAAAAAAAAAAAAA $* 1>&2
+#pwd 1>&2
+#env 1>&2
+#cp module_tmp_header.h /tmp
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.4.sdk -E $*
