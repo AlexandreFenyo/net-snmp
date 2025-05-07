@@ -3741,7 +3741,7 @@ parse_imports(FILE * fp)
     /*
      * Shouldn't get this far
      */
-    print_module_not_found(module_name(current_module, modbuf));
+ print_module_not_found(module_name(current_module, modbuf));
 
 out:
     free(import_list);
@@ -3900,6 +3900,7 @@ read_import_replacements(const char *old_module_name,
  *      Returns the root of the whole tree
  *      (by analogy with 'read_mib')
  */
+
 static int
 read_module_internal(const char *name)
 {
@@ -3909,7 +3910,7 @@ read_module_internal(const char *name)
 
     netsnmp_init_mib_internals();
 
-    for (mp = module_head; mp; mp = mp->next)
+    for (mp = module_head; mp; mp = mp->next) { 
         if (!label_compare(mp->name, name)) {
             const char     *oldFile = File;
             int             oldLine = mibLine;
@@ -3920,6 +3921,9 @@ read_module_internal(const char *name)
                             name));
                 return MODULE_ALREADY_LOADED;
             }
+
+	    print_error(mp->file, NULL, CONTINUE);
+
             if ((fp = fopen(mp->file, "r")) == NULL) {
                 int rval;
                 if (errno == ENOTDIR || errno == ENOENT)
@@ -3951,6 +3955,7 @@ read_module_internal(const char *name)
                 return MODULE_SYNTAX_ERROR;
             return MODULE_LOADED_OK;
         }
+	}
 
     return MODULE_NOT_FOUND;
 }

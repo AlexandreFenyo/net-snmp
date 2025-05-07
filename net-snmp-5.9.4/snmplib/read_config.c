@@ -1339,7 +1339,9 @@ read_config_files_in_path(const char *path, struct config_files *ctmp,
 
         cptr2 = ++cptr1;
     }
+
     SNMP_FREE(envconfpath);
+
     return ret;
 }
 
@@ -1376,6 +1378,13 @@ read_config_files_in_path(const char *path, struct config_files *ctmp,
  * Return SNMPERR_GENERR if _no_ config files are processed
  *    Whether this is actually an error is left to the application
  */
+
+static char snmpconfpath[4096];
+void alex_setsnmpconfpath(char *input) {
+  strncpy(snmpconfpath, input, sizeof snmpconfpath);
+  snmpconfpath[sizeof snmpconfpath - 1] = 0;
+}
+
 int
 read_config_files_of_type(int when, struct config_files *ctmp)
 {
@@ -1394,8 +1403,12 @@ read_config_files_of_type(int when, struct config_files *ctmp)
      */
     confpath = get_configuration_directory();
     persfile = netsnmp_getenv("SNMP_PERSISTENT_FILE");
-    envconfpath = netsnmp_getenv("SNMPCONFPATH");
 
+    // Alex
+    //        envconfpath = netsnmp_getenv("SNMPCONFPATH");
+    envconfpath = malloc(sizeof snmpconfpath);
+    bcopy(snmpconfpath, envconfpath, sizeof snmpconfpath);
+    //    envconfpath = snmpconfpath;
 
         /*
          * read the config files. strdup() the result of

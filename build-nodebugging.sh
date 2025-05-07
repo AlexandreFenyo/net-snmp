@@ -36,7 +36,12 @@ Build() {
         --exec-prefix="${EXEC_PREFIX}" \
         --enable-static \
 	--disable-agent \
+	--enable-reentrant \
         --disable-shared  # Avoid Xcode loading dylibs even when staticlibs exist
+
+
+#    	--with-mibdirs="\$HOME/Documents/mibs"
+#	--with-mibdirs=""
 
     make clean
     mkdir -p "${PLATFORMS}" &> /dev/null
@@ -57,6 +62,16 @@ UNIVERSAL="${PREFIX}"/universal
 OPT_FLAGS="-O3 -g3 -fembed-bitcode"
 MAKE_JOBS=8
 MIN_IOS_VERSION=8.0
+
+# Build for platforms
+SDK="iphoneos"
+PLATFORM="arm"
+PLATFORM_ARM=${PLATFORM}
+ARCH_FLAGS="-arch arm64 -arch arm64e"  # -arch armv7 -arch armv7s
+HOST_FLAGS="${ARCH_FLAGS} -miphoneos-version-min=${MIN_IOS_VERSION} -isysroot $(xcrun --sdk ${SDK} --show-sdk-path)"
+CHOST="arm-apple-darwin"
+Build
+exit 0
 
 SDK="iphonesimulator"
 PLATFORM="arm64-sim"

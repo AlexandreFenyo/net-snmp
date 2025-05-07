@@ -36,7 +36,13 @@ Build() {
         --exec-prefix="${EXEC_PREFIX}" \
         --enable-static \
 	--disable-agent \
+	--enable-debugging \
+	--enable-reentrant \
         --disable-shared  # Avoid Xcode loading dylibs even when staticlibs exist
+
+
+#    	--with-mibdirs="\$HOME/Documents/mibs"
+#	--with-mibdirs=""
 
     make clean
     mkdir -p "${PLATFORMS}" &> /dev/null

@@ -681,6 +681,46 @@ void netsnmp_srandom(unsigned int seed)
 #endif
 }
 
+#include <sys/types.h>
+#include <sys/dir.h>
+
+int alex_debug(char *input) {
+  printf("XXXXX: alex_debug: input: %s\n", input);
+  int ret = chdir("%s");
+  return ret;
+}
+
+int alex_chdir(char *input) {
+  printf("XXXXX: alex_chdir to: %s\n", input);
+  int ret = chdir("%s");
+  if (ret < 0) printf("XXXXX: error %d: %s\n", errno, strerror(errno));
+  return ret;
+}
+
+void alex_getcwd() { 
+  char *foo_str = getcwd(NULL, 0);
+  printf("XXXXX: getcwd %s\n", foo_str);
+  free(foo_str);
+}
+
+void alex_list_dir() {
+  struct dirent *de;  // Structure pour stocker les informations sur le fichier
+
+  DIR *dr = opendir(".");  // Ouvre le répertoire courant
+
+  if (dr == NULL) {  // Vérifie si le répertoire a été ouvert avec succès
+    printf("Erreur : Impossible d'ouvrir le repertoire.\n");
+    return;
+  }
+
+  printf("Liste des fichiers dans le repertoire courant :\n");
+  while ((de = readdir(dr)) != NULL) {  // Lit les entrées du répertoire
+    printf("FICHIER TROUVE dans le rept courant: %s\n", de->d_name);  // Affiche le nom du fichier
+  }
+
+  closedir(dr);  // Ferme le répertoire
+}
+
 /*
  * Primordial SNMP library initialization.
  * Initializes mutex locks.
@@ -695,15 +735,19 @@ static char _init_snmp_init_done = 0;
 static void
 _init_snmp(void)
 {
-
     struct timeval  tv;
     long            tmpReqid, tmpMsgid;
 
+    printf("XXXXX: init_snmp()\n");
+    
     if (_init_snmp_init_done)
         return;
     _init_snmp_init_done = 1;
     Reqid = 1;
 
+    // Forcer une exception
+    //    char *foo = 0; *foo = 1;
+    
     snmp_res_init();            /* initialize the mt locking structures */
 #ifndef NETSNMP_DISABLE_MIB_LOADING
     netsnmp_init_mib_internals();

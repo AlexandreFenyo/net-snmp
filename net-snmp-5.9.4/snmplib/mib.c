@@ -2621,6 +2621,12 @@ netsnmp_set_mib_directory(const char *dir)
  * returns  : char * of the directories in which the MIB modules
  *            will be searched/loaded.
  */
+// Alex
+char snmpmibdir[4096];
+void alex_setsnmpmibdir(char *input) {
+  strncpy(snmpmibdir, input, sizeof snmpmibdir);
+  snmpmibdir[sizeof snmpmibdir - 1] = 0;
+}
 
 char *
 netsnmp_get_mib_directory(void)
@@ -2633,7 +2639,10 @@ netsnmp_get_mib_directory(void)
         DEBUGMSGTL(("get_mib_directory", "no mib directories set\n"));
 
         /** Check if the environment variable is set */
-        dir = netsnmp_getenv("MIBDIRS");
+	dir = malloc(4096);
+	bcopy(snmpmibdir, dir, 4096);
+        // dir = netsnmp_getenv("MIBDIRS");
+
         if (dir == NULL) {
             DEBUGMSGTL(("get_mib_directory", "no mib directories set by environment\n"));
             /** Not set use hard coded path */
