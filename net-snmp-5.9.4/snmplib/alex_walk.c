@@ -51,7 +51,7 @@ void alex_rollingbuf_close(void) {
 }
 
 int alex_rollingbuf_isfull(void) {
-    printf("XXXXX: %d ; %d\n", alex_rollingbuf_read_idx, alex_rollingbuf_write_idx);
+//    printf("XXXXX: %d ; %d\n", alex_rollingbuf_read_idx, alex_rollingbuf_write_idx);
     return ((alex_rollingbuf_write_idx + 1) % ALEX_RBUF_LEN) == alex_rollingbuf_read_idx;
 }
 
@@ -76,7 +76,7 @@ int alex_rollingbuf_pop(char *target) {
     if (alex_rollingbuf_isempty()) return -1;
     stpcpy(target, alex_rollingbuf[alex_rollingbuf_read_idx]);
     alex_rollingbuf_incr_read_idx();
-    printf("XXXXX: C: pop target %p: %s\n", target, target);
+//    printf("XXXXX: C: pop target %p: %s\n", target, target);
     return 0;
 }
 
@@ -393,8 +393,8 @@ alex_main(int argc, char *argv[])
                                 (double) (tv_b.tv_sec - tv_a.tv_sec));
                     
                     // Alex
-                    printf("XXXXX: ICI11\n");
-                    print_variable(vars->name, vars->name_length, vars);
+                    // printf("XXXXX: ICI11\n");
+                    // print_variable(vars->name, vars->name_length, vars);
                     char foo[65536];
                     int retval;
                     snprint_variable(foo, sizeof foo, vars->name, vars->name_length, vars);
@@ -403,11 +403,11 @@ alex_main(int argc, char *argv[])
                     do {
                         retval = alex_rollingbuf_push(foo);
                         if (retval == -1) {
-                            printf("XXXXX: attendre 1 sec\n");
-                            sleep(1);
+                            // printf("XXXXX: attendre 0.2 sec\n");
+                            usleep(200000);
                         }
                     } while (retval == -1);
-                    printf("XXXXX: ICI2\n");
+                    // printf("XXXXX: ICI2\n");
                     
                     if ((vars->type != SNMP_ENDOFMIBVIEW) &&
                         (vars->type != SNMP_NOSUCHOBJECT) &&
