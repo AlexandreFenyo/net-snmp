@@ -6,18 +6,32 @@
 
 extern int alex_main(int argc, char *argv[]);
 
-char *alex_community;
-
 extern void usage(void);
 
+// Must be in sync with SNMPManager.swift
+#define ALEX_AV_TAB_LEN 32
+#define ALEX_AV_STR_LEN 1024
+
+char alex_av_tab[ALEX_AV_TAB_LEN][ALEX_AV_STR_LEN];
+char *alex_av[ALEX_AV_TAB_LEN];
+int av_count = 0;
+
+void alex_set_av(int idx, char *str) {
+    strncpy(alex_av_tab[idx], str, ALEX_AV_STR_LEN - 1);
+    alex_av_tab[idx][ALEX_AV_STR_LEN - 1] = 0;
+}
+
+void alex_set_av_count(int count) {
+    av_count = count;
+}
+
 void alex_walk(void) {
-  alex_community = malloc(4096);
-  strcpy(alex_community, "public");
+    for (int i = 0; i < ALEX_AV_TAB_LEN; i++) {
+        alex_av[i] = alex_av_tab[i];
+        // printf("arg[%d]=%s\n", i, alex_av[i]);
+    }
 
-  char *av[] = { "snmpwalk", "-v", "2c", "-c", alex_community, "192.168.0.254" };
-
-  alex_main(6, av);
-  //  exit(0);
+    alex_main(av_count, alex_av);
 }
 
 // read == write <=> empty
@@ -401,6 +415,7 @@ alex_main(int argc, char *argv[])
                     struct timespec req;
 
                     do {
+                        printf("var: %s\n", foo);
                         retval = alex_rollingbuf_push(foo);
                         if (retval == -1) {
                             // printf("XXXXX: attendre 0.2 sec\n");

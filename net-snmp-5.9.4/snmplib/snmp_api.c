@@ -738,7 +738,7 @@ _init_snmp(void)
     struct timeval  tv;
     long            tmpReqid, tmpMsgid;
 
-    printf("XXXXX: init_snmp()\n");
+//    printf("XXXXX: init_snmp()\n");
     
     if (_init_snmp_init_done)
         return;
