@@ -415,7 +415,7 @@ alex_main(int argc, char *argv[])
                     struct timespec req;
 
                     do {
-                        printf("var: %s\n", foo);
+                        // printf("var: %s\n", foo);
                         retval = alex_rollingbuf_push(foo);
                         if (retval == -1) {
                             // printf("XXXXX: attendre 0.2 sec\n");
