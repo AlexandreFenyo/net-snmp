@@ -44,6 +44,21 @@ char *alex_rollingbuf[ALEX_RBUF_LEN];
 int alex_rollingbuf_write_idx = 0;
 int alex_rollingbuf_read_idx = 0;
 
+#define ALEX_ERRBUF_LEN 4096
+char alex_errbuf[ALEX_ERRBUF_LEN];
+
+void alex_errbuf_clear(void) {
+    alex_errbuf[0] = 0;
+}
+
+void alex_errbuf_get(char *target) {
+    stpcpy(target, alex_errbuf);
+}
+
+void alex_errbuf_set(char *src) {
+    stpcpy(alex_errbuf, src);
+}
+
 void alex_rollingbuf_init(void) {
     alex_rollingbuf_write_idx = 0;
     alex_rollingbuf_read_idx = 0;
@@ -478,6 +493,8 @@ alex_main(int argc, char *argv[])
                 }
             }
         } else if (status == STAT_TIMEOUT) {
+            snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "Timeout: No Response from %s\n",
+                     session.peername);
             fprintf(stderr, "Timeout: No Response from %s\n",
                     session.peername);
             running = 0;
