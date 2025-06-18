@@ -95,6 +95,7 @@ typedef struct request_list {
      * Set fields in session and pdu to the following to get a default or unconfigured value.
      */
 #define SNMP_DEFAULT_COMMUNITY_LEN  0   /* to get a default community name */
+
 #define SNMP_DEFAULT_RETRIES	    -1
 #define SNMP_DEFAULT_TIMEOUT	    -1
 #define SNMP_DEFAULT_REMPORT	    0

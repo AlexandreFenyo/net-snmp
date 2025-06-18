@@ -165,6 +165,8 @@ void
 usage(void)
 {
     fprintf(stderr, "USAGE: snmpwalk ");
+    snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "USAGE: snmpwalk");
+
     snmp_parse_args_usage(stderr);
     fprintf(stderr, " [OID]\n\n");
     snmp_parse_args_descriptions(stderr);
@@ -246,6 +248,8 @@ optProc(int argc, char *const *argv, int opt)
                 break;
                 
             default:
+                snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "Unknown flag passed to -C: %c\n",
+                        optarg[-1]);
                 fprintf(stderr, "Unknown flag passed to -C: %c\n",
                         optarg[-1]);
                 exit(1);
@@ -363,6 +367,11 @@ alex_main(int argc, char *argv[])
          * diagnose snmp_open errors with the input netsnmp_session pointer 
          */
         snmp_sess_perror("snmpwalk", &session);
+
+        char *err;
+        snmp_error(&session, NULL, NULL, &err);
+        snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "%s", err);
+
         goto out;
     }
 
@@ -451,6 +460,7 @@ alex_main(int argc, char *argv[])
                                                 vars->name_length) >= 0) {
                             fflush(stdout);
                             fprintf(stderr, "Error: OID not increasing: ");
+                            snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "Error: OID not increasing");
                             fprint_objid(stderr, name, name_length);
                             fprintf(stderr, " >= ");
                             fprint_objid(stderr, vars->name,
@@ -476,6 +486,8 @@ alex_main(int argc, char *argv[])
                 if (response->errstat == SNMP_ERR_NOSUCHNAME) {
                     printf("End of MIB\n");
                 } else {
+                    snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "Error in packet.\nReason: %s\n",
+                            snmp_errstring(response->errstat));
                     fprintf(stderr, "Error in packet.\nReason: %s\n",
                             snmp_errstring(response->errstat));
                     if (response->errindex != 0) {
@@ -501,6 +513,11 @@ alex_main(int argc, char *argv[])
             exitval = 1;
         } else {                /* status == STAT_ERROR */
             snmp_sess_perror("snmpwalk", ss);
+
+            char *err;
+            snmp_error(ss, NULL, NULL, &err);
+            snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "%s", err);
+
             running = 0;
             exitval = 1;
         }
