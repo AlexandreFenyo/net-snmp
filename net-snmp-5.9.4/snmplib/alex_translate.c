@@ -64,7 +64,7 @@ int             show_all_matched_objects(FILE *, const char *, oid *,
                                          size_t *, int, int);
 
 void
-usage(void)
+ALEX_LOCAL_usage(void)
 {
     fprintf(stderr, "USAGE: snmptranslate [OPTIONS] OID [OID]...\n\n");
     fprintf(stderr, "  Version:  %s\n", netsnmp_get_version());
@@ -194,7 +194,7 @@ alex_main_translate(int argc, char *argv[])
     while ((arg = getopt(argc, argv, "Vhm:M:w:D:P:T:O:I:L:")) != EOF) {
         switch (arg) {
         case 'h':
-            usage();
+            ALEX_LOCAL_usage();
             goto out;
 
         case 'm':
@@ -225,7 +225,7 @@ alex_main_translate(int argc, char *argv[])
             cp = snmp_mib_toggle_options(optarg);
             if (cp != NULL) {
                 fprintf(stderr, "Unknown parser option to -P: %c.\n", *cp);
-                usage();
+                ALEX_LOCAL_usage();
                 goto out;
             }
             break;
@@ -234,7 +234,7 @@ alex_main_translate(int argc, char *argv[])
             cp = snmp_out_toggle_options(optarg);
             if (cp != NULL) {
                 fprintf(stderr, "Unknown OID option to -O: %c.\n", *cp);
-                usage();
+                ALEX_LOCAL_usage();
                 goto out;
             }
             break;
@@ -242,7 +242,7 @@ alex_main_translate(int argc, char *argv[])
             cp = snmp_in_toggle_options(optarg);
             if (cp != NULL) {
                 fprintf(stderr, "Unknown OID option to -I: %c.\n", *cp);
-                usage();
+                ALEX_LOCAL_usage();
                 goto out;
             }
             break;
@@ -288,7 +288,7 @@ alex_main_translate(int argc, char *argv[])
                 default:
                     fprintf(stderr, "Invalid -T<lostpad> character: %c\n",
                             *cp);
-                    usage();
+                    ALEX_LOCAL_usage();
                     goto out;
                 }
             }
@@ -299,7 +299,7 @@ alex_main_translate(int argc, char *argv[])
             break;
         default:
             fprintf(stderr, "invalid option: -%c\n", arg);
-            usage();
+            ALEX_LOCAL_usage();
             goto out;
         }
     }
@@ -312,7 +312,7 @@ alex_main_translate(int argc, char *argv[])
     if (current_name == NULL) {
         switch (print) {
         default:
-            usage();
+            ALEX_LOCAL_usage();
             goto out;
 #ifndef NETSNMP_DISABLE_MIB_LOADING
         case 1:
