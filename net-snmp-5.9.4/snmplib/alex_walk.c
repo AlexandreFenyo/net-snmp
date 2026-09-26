@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdatomic.h>
+#include <unistd.h>
 
 extern int alex_main(int argc, char *argv[]);
 
@@ -34,6 +36,12 @@ void alex_walk(void) {
     alex_main(av_count, alex_av);
 }
 
+// Anneau de résultats entre le thread C du walk (producteur : alex_main -> push) et le
+// thread Swift (consommateur : SNMPManager.walk -> poplength/pop, et isempty depuis
+// getState). Un seul producteur, un seul consommateur : pas de verrou, mais les deux index
+// sont atomiques, publiés en release et lus en acquire, pour qu'une entrée soit toujours
+// entièrement écrite (malloc + copie) avant que l'autre thread voie l'index qui la rend
+// visible (modèle mémoire faible d'ARM64).
 // read == write <=> empty
 // write + 1 == read <=> full
 // note: this way, we loose 1 entry
@@ -41,8 +49,21 @@ void alex_walk(void) {
 // write: next write
 #define ALEX_RBUF_LEN 1024
 char *alex_rollingbuf[ALEX_RBUF_LEN];
-int alex_rollingbuf_write_idx = 0;
-int alex_rollingbuf_read_idx = 0;
+static _Atomic int alex_rollingbuf_write_idx = 0;
+static _Atomic int alex_rollingbuf_read_idx = 0;
+
+// Arrêt d'un walk en cours demandé par l'app (alex_walk_stop) : vérifié par alex_main entre
+// deux requêtes GETNEXT et pendant l'attente d'une place dans l'anneau. Remis à zéro par
+// alex_rollingbuf_init, que l'app appelle juste avant de lancer chaque walk.
+static _Atomic int alex_stop_requested = 0;
+
+void alex_walk_stop(void) {
+    atomic_store_explicit(&alex_stop_requested, 1, memory_order_release);
+}
+
+static int alex_walk_stopping(void) {
+    return atomic_load_explicit(&alex_stop_requested, memory_order_acquire);
+}
 
 #define ALEX_ERRBUF_LEN 4096
 char alex_errbuf[ALEX_ERRBUF_LEN];
@@ -59,53 +80,68 @@ void alex_errbuf_set(char *src) {
     stpcpy(alex_errbuf, src);
 }
 
+// Appelé par l'app avant chaque walk, anneau vide (aucun walk en cours)
 void alex_rollingbuf_init(void) {
-    alex_rollingbuf_write_idx = 0;
-    alex_rollingbuf_read_idx = 0;
+    atomic_store_explicit(&alex_rollingbuf_write_idx, 0, memory_order_release);
+    atomic_store_explicit(&alex_rollingbuf_read_idx, 0, memory_order_release);
+    atomic_store_explicit(&alex_stop_requested, 0, memory_order_release);
 }
 
-void alex_rollingbuf_incr_read_idx(void) {
-    if (++alex_rollingbuf_read_idx == ALEX_RBUF_LEN) alex_rollingbuf_read_idx = 0;
+static int alex_rollingbuf_next(int idx) {
+    return idx + 1 == ALEX_RBUF_LEN ? 0 : idx + 1;
 }
 
-void alex_rollingbuf_incr_write_idx(void) {
-    if (++alex_rollingbuf_write_idx == ALEX_RBUF_LEN) alex_rollingbuf_write_idx = 0;
-}
-
+// Consommateur : libère les entrées non lues
 void alex_rollingbuf_close(void) {
-    while (alex_rollingbuf_read_idx != alex_rollingbuf_write_idx) {
-        free(alex_rollingbuf[alex_rollingbuf_read_idx]);
-        alex_rollingbuf_incr_read_idx();
+    int r = atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_relaxed);
+    while (r != atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_acquire)) {
+        free(alex_rollingbuf[r]);
+        r = alex_rollingbuf_next(r);
+        atomic_store_explicit(&alex_rollingbuf_read_idx, r, memory_order_release);
     }
 }
 
 int alex_rollingbuf_isfull(void) {
-//    printf("XXXXX: %d ; %d\n", alex_rollingbuf_read_idx, alex_rollingbuf_write_idx);
-    return ((alex_rollingbuf_write_idx + 1) % ALEX_RBUF_LEN) == alex_rollingbuf_read_idx;
+    int w = atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_acquire);
+    int r = atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_acquire);
+    return alex_rollingbuf_next(w) == r;
 }
 
 int alex_rollingbuf_isempty(void) {
-    return alex_rollingbuf_write_idx == alex_rollingbuf_read_idx;
+    int w = atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_acquire);
+    int r = atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_acquire);
+    return w == r;
 }
 
+// Producteur. Retourne -1 si l'anneau est plein (ou en cas d'échec d'allocation)
 int alex_rollingbuf_push(char *str) {
-    if (alex_rollingbuf_isfull()) return -1;
-    alex_rollingbuf[alex_rollingbuf_write_idx] = malloc(strlen(str) + 1);
-    stpcpy(alex_rollingbuf[alex_rollingbuf_write_idx], str);
-    alex_rollingbuf_incr_write_idx();
+    int w = atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_relaxed);
+    // acquire : la place libérée par le consommateur (free inclus) est bien disponible
+    if (alex_rollingbuf_next(w) == atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_acquire)) return -1;
+    char *copy = malloc(strlen(str) + 1);
+    if (copy == NULL) return -1;
+    stpcpy(copy, str);
+    alex_rollingbuf[w] = copy;
+    // release : l'entrée est entièrement écrite avant que l'index la rende visible
+    atomic_store_explicit(&alex_rollingbuf_write_idx, alex_rollingbuf_next(w), memory_order_release);
     return 0;
 }
 
+// Consommateur : longueur de la prochaine entrée, -1 si l'anneau est vide
 int alex_rollingbuf_poplength(void) {
-    if (alex_rollingbuf_isempty()) return -1;
-    return strlen(alex_rollingbuf[alex_rollingbuf_read_idx]);
+    int r = atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_relaxed);
+    if (r == atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_acquire)) return -1;
+    return strlen(alex_rollingbuf[r]);
 }
 
+// Consommateur : copie la prochaine entrée dans target (taille poplength() + 1) et la libère
 int alex_rollingbuf_pop(char *target) {
-    if (alex_rollingbuf_isempty()) return -1;
-    stpcpy(target, alex_rollingbuf[alex_rollingbuf_read_idx]);
-    alex_rollingbuf_incr_read_idx();
-//    printf("XXXXX: C: pop target %p: %s\n", target, target);
+    int r = atomic_load_explicit(&alex_rollingbuf_read_idx, memory_order_relaxed);
+    if (r == atomic_load_explicit(&alex_rollingbuf_write_idx, memory_order_acquire)) return -1;
+    stpcpy(target, alex_rollingbuf[r]);
+    free(alex_rollingbuf[r]);
+    alex_rollingbuf[r] = NULL;
+    atomic_store_explicit(&alex_rollingbuf_read_idx, alex_rollingbuf_next(r), memory_order_release);
     return 0;
 }
 
@@ -198,7 +234,11 @@ snmp_get_and_print(netsnmp_session * ss, oid * theoid, size_t theoid_len)
     if (status == STAT_SUCCESS && response->errstat == SNMP_ERR_NOERROR) {
         for (vars = response->variables; vars; vars = vars->next_variable) {
             numprinted++;
-            print_variable(vars->name, vars->name_length, vars);
+            // Alex : résultat envoyé à l'app par l'anneau, comme ceux du walk (au lieu de stdout)
+            char buf[65536];
+            snprint_variable(buf, sizeof buf, vars->name, vars->name_length, vars);
+            while (alex_rollingbuf_push(buf) == -1 && !alex_walk_stopping())
+                usleep(200000);
         }
     }
     if (response) {
@@ -280,6 +320,9 @@ alex_main(int argc, char *argv[])
     struct timeval  tv1, tv2, tv_a, tv_b;
 
     SOCK_STARTUP;
+
+    // Alex : alex_main est rappelé pour chaque walk dans le même process
+    numprinted = 0;
 
     netsnmp_ds_register_config(ASN_BOOLEAN, "snmpwalk", "includeRequested",
 			       NETSNMP_DS_APPLICATION_ID, 
@@ -394,7 +437,9 @@ alex_main(int argc, char *argv[])
                                NETSNMP_DS_WALK_TIME_RESULTS))
         netsnmp_get_monotonic_clock(&tv1);
     exitval = 0;
-    while (running) {
+    // Alex : arrêt possible depuis l'app, entre deux requêtes (sortie par le chemin normal :
+    // session fermée et nettoyée comme après un timeout, le walk suivant repart proprement)
+    while (running && !alex_walk_stopping()) {
         /*
          * create PDU for GETNEXT request and add object name to request 
          */
@@ -442,6 +487,11 @@ alex_main(int argc, char *argv[])
                         // printf("var: %s\n", foo);
                         retval = alex_rollingbuf_push(foo);
                         if (retval == -1) {
+                            // Arrêt demandé pendant l'attente d'une place : valeur abandonnée
+                            if (alex_walk_stopping()) {
+                                running = 0;
+                                break;
+                            }
                             // printf("XXXXX: attendre 0.2 sec\n");
                             usleep(200000);
                         }
@@ -528,7 +578,9 @@ alex_main(int argc, char *argv[])
                                NETSNMP_DS_WALK_TIME_RESULTS))
         netsnmp_get_monotonic_clock(&tv2);
 
-    if (numprinted == 0 && status == STAT_SUCCESS) {
+    if (alex_walk_stopping()) {
+        snprintf(alex_errbuf, ALEX_ERRBUF_LEN, "Walk interrupted");
+    } else if (numprinted == 0 && status == STAT_SUCCESS) {
         /*
          * no printed successful results, which may mean we were
          * pointed at an only existing instance.  Attempt a GET, just
